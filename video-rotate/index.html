@@ -1,0 +1,390 @@
+<title>動画くるっと回転</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  /* Layout: one narrow column — pick a file, see it turn, save it. */
+  :root {
+    --bg: #eef1f6;
+    --surface: #ffffff;
+    --fg: #17202e;
+    --muted: #5b6678;
+    --line: #cfd6e2;
+    --accent: #2447b8;
+    --accent-fg: #ffffff;
+    --stage: #0f1520;
+    --ok: #1d7a4c;
+    --err: #b3261e;
+    --font-body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151e; --surface: #18202c; --fg: #e6ebf3; --muted: #9aa5b8; --line: #2c3748;
+      --accent: #7f9cff; --accent-fg: #0d1430; --stage: #070a10; --ok: #5ccf94; --err: #ff8a80;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151e; --surface: #18202c; --fg: #e6ebf3; --muted: #9aa5b8; --line: #2c3748;
+    --accent: #7f9cff; --accent-fg: #0d1430; --stage: #070a10; --ok: #5ccf94; --err: #ff8a80;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding-block: 28px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    text-wrap: balance;
+  }
+  .lead { margin: 4px 0 0; color: var(--muted); }
+
+  .pick {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 22px 16px;
+    border: 2px dashed var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s;
+  }
+  .pick:hover, .pick.drag, .pick:focus-within { border-color: var(--accent); }
+  .pick strong { font-size: 1.05rem; }
+  .pick span { color: var(--muted); font-size: .85rem; }
+  .pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .filename { font-family: var(--font-mono); font-size: .8rem; color: var(--fg); word-break: break-all; }
+
+  .stage {
+    position: relative;
+    width: 100%;
+    height: min(58vh, 460px);
+    background: var(--stage);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .stage video, .stage .ghost {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) rotate(0deg);
+    transition: transform .3s ease;
+  }
+  .stage .ghost {
+    display: grid;
+    place-items: center;
+    border: 2px solid #ffffff55;
+    border-radius: 10px;
+    color: #ffffffcc;
+    font-weight: 700;
+    font-size: 2rem;
+  }
+  .stage .msg {
+    position: absolute;
+    left: 12px; right: 12px; bottom: 10px;
+    color: #ffffffcc;
+    font-size: .8rem;
+    text-align: center;
+  }
+  .badge {
+    position: absolute;
+    top: 10px; right: 10px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #00000099;
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: .85rem;
+    font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stage video, .stage .ghost { transition: none; }
+  }
+
+  .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  button {
+    font: inherit;
+    font-weight: 700;
+    min-height: 48px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    border: 1.5px solid var(--line);
+    background: var(--surface);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .save {
+    width: 100%;
+    min-height: 56px;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
+    font-size: 1.1rem;
+  }
+  .status { min-height: 1.7em; margin: 0; font-size: .9rem; color: var(--muted); }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
+
+  .notes { margin: 0; padding-left: 1.2em; color: var(--muted); font-size: .85rem; }
+  .notes li + li { margin-top: 4px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>動画くるっと回転</h1>
+    <p class="lead">動画を選んで、向きを直して、保存するだけ。</p>
+  </header>
+
+  <label class="pick" id="pick">
+    <input type="file" id="file" accept="video/mp4,video/quicktime,.mp4,.mov,.m4v">
+    <strong>動画をえらぶ</strong>
+    <span>ここをタップ（またはファイルをドラッグ）・MP4 / MOV</span>
+    <span class="filename" id="filename" hidden></span>
+  </label>
+
+  <div class="stage" id="stage">
+    <div class="ghost" id="ghost">▶</div>
+    <video id="video" muted playsinline controls hidden></video>
+    <div class="badge" id="badge">0°</div>
+    <div class="msg" id="stageMsg">動画をえらぶと、ここに表示されます（今はお試し表示）</div>
+  </div>
+
+  <div class="controls">
+    <button type="button" id="left">⟲ 左に90°</button>
+    <button type="button" id="flip">↻ 180°</button>
+    <button type="button" id="right">⟳ 右に90°</button>
+  </div>
+
+  <button type="button" class="save" id="save" disabled>保存する</button>
+  <p class="status" id="status" role="status"></p>
+
+  <ul class="notes">
+    <li>動画はこの端末の中だけで処理します。どこにもアップロードしません。</li>
+    <li>映像を作り直さず「向きの情報」だけを書きかえるので、画質は落ちず、一瞬で終わります。</li>
+    <li>ごく一部の古い再生ソフトは向きの情報を読まないため、回っていないように見えることがあります。</li>
+  </ul>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const fileInput = $("file"), pick = $("pick"), filenameEl = $("filename");
+  const stage = $("stage"), video = $("video"), ghost = $("ghost");
+  const badge = $("badge"), stageMsg = $("stageMsg");
+  const saveBtn = $("save"), statusEl = $("status");
+
+  let file = null;
+  let angle = 0;              // 回転する角度（時計回り）
+  let aspect = 16 / 9;        // 今見えている動画の横÷縦
+  let objectUrl = null;
+
+  // ---------- 画面の表示 ----------
+  function setStatus(text, kind) {
+    statusEl.textContent = text;
+    statusEl.className = "status" + (kind ? " " + kind : "");
+  }
+
+  function layout() {
+    const el = video.hidden ? ghost : video;
+    const cw = stage.clientWidth - 24, ch = stage.clientHeight - 24;
+    const turned = angle % 180 !== 0;
+    const ar = turned ? 1 / aspect : aspect;     // 回したあとの横÷縦
+    const w = Math.min(cw, ch * ar), h = w / ar;
+    el.style.width = (turned ? h : w) + "px";
+    el.style.height = (turned ? w : h) + "px";
+    el.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+    badge.textContent = angle + "°";
+  }
+
+  function rotate(delta) {
+    angle = ((angle + delta) % 360 + 360) % 360;
+    layout();
+    if (file) setStatus(angle === 0 ? "向きはそのままです。" : `時計回りに ${angle}° 回して保存します。`);
+  }
+
+  $("left").onclick = () => rotate(-90);
+  $("right").onclick = () => rotate(90);
+  $("flip").onclick = () => rotate(180);
+  new ResizeObserver(layout).observe(stage);
+
+  // ---------- 動画をえらぶ ----------
+  function loadFile(f) {
+    if (!f) return;
+    if (!/\.(mp4|mov|m4v)$/i.test(f.name) && !/^video\/(mp4|quicktime)/.test(f.type)) {
+      setStatus("MP4 か MOV の動画をえらんでください。", "err");
+      return;
+    }
+    file = f;
+    angle = 0;
+    filenameEl.textContent = f.name;
+    filenameEl.hidden = false;
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(f);
+    video.src = objectUrl;
+    video.hidden = false;
+    ghost.hidden = true;
+    stageMsg.textContent = "";
+    saveBtn.disabled = false;
+    setStatus("回したい向きのボタンをおしてください。");
+    layout();
+  }
+
+  video.addEventListener("loadedmetadata", () => {
+    if (video.videoWidth && video.videoHeight) aspect = video.videoWidth / video.videoHeight;
+    layout();
+  });
+  video.addEventListener("error", () => {
+    if (!file) return;
+    video.hidden = true;
+    ghost.hidden = false;
+    stageMsg.textContent = "このブラウザでは再生できない形式です。回転と保存はできます。";
+    layout();
+  });
+
+  fileInput.addEventListener("change", () => loadFile(fileInput.files[0]));
+  ["dragenter", "dragover"].forEach((t) => pick.addEventListener(t, (e) => { e.preventDefault(); pick.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach((t) => pick.addEventListener(t, (e) => { e.preventDefault(); pick.classList.remove("drag"); }));
+  pick.addEventListener("drop", (e) => loadFile(e.dataTransfer.files[0]));
+
+  // ---------- MP4 / MOV の「向きの情報」を書きかえる ----------
+  async function readBytes(blob, start, length) {
+    return new Uint8Array(await blob.slice(start, start + length).arrayBuffer());
+  }
+  const typeOf = (u8, i) => String.fromCharCode(u8[i], u8[i + 1], u8[i + 2], u8[i + 3]);
+
+  // ファイルの一番外側から moov 箱をさがす（大きな動画でも全部は読まない）
+  async function findMoov(blob) {
+    let pos = 0;
+    while (pos + 8 <= blob.size) {
+      const h = await readBytes(blob, pos, 16);
+      const dv = new DataView(h.buffer);
+      let size = dv.getUint32(0), hdr = 8;
+      const type = typeOf(h, 4);
+      if (size === 1) { size = dv.getUint32(8) * 2 ** 32 + dv.getUint32(12); hdr = 16; }
+      else if (size === 0) size = blob.size - pos;
+      if (size < hdr) break;
+      if (type === "moov") return { start: pos, size };
+      pos += size;
+    }
+    return null;
+  }
+
+  function* boxes(dv, start, end) {
+    let p = start;
+    while (p + 8 <= end) {
+      let size = dv.getUint32(p), hdr = 8;
+      if (size === 1) { size = dv.getUint32(p + 8) * 2 ** 32 + dv.getUint32(p + 12); hdr = 16; }
+      else if (size === 0) size = end - p;
+      if (size < hdr || p + size > end) return;
+      yield { type: typeOf(new Uint8Array(dv.buffer), p + 4), start: p, body: p + hdr, end: p + size };
+      p += size;
+    }
+  }
+  const child = (dv, box, type) => { for (const b of boxes(dv, box.body, box.end)) if (b.type === type) return b; return null; };
+
+  // 映像トラックの tkhd にある回転の行列を（今の向き＋delta）に書きかえる
+  function rotateMoov(moov, delta) {
+    const dv = new DataView(moov.buffer);
+    const root = { body: 8, end: moov.length };
+    if (dv.getUint32(0) === 1) root.body = 16;
+    let count = 0;
+    for (const trak of boxes(dv, root.body, root.end)) {
+      if (trak.type !== "trak") continue;
+      const mdia = child(dv, trak, "mdia");
+      const hdlr = mdia && child(dv, mdia, "hdlr");
+      if (!hdlr || typeOf(moov, hdlr.body + 8) !== "vide") continue;
+      const tkhd = child(dv, trak, "tkhd");
+      if (!tkhd) continue;
+      const version = dv.getUint8(tkhd.body);
+      const m = tkhd.body + 4 + (version === 1 ? 32 : 20) + 16;
+      const a = dv.getInt32(m) / 65536, b = dv.getInt32(m + 4) / 65536;
+      const current = Math.round(Math.atan2(b, a) * 180 / Math.PI / 90) * 90;
+      const next = (((current + delta) % 360) + 360) % 360;
+      const cos = Math.round(Math.cos(next * Math.PI / 180));
+      const sin = Math.round(Math.sin(next * Math.PI / 180));
+      dv.setInt32(m, cos * 65536);       // a
+      dv.setInt32(m + 4, sin * 65536);   // b
+      dv.setInt32(m + 12, -sin * 65536); // c
+      dv.setInt32(m + 16, cos * 65536);  // d
+      dv.setInt32(m + 24, 0);            // x
+      dv.setInt32(m + 28, 0);            // y
+      count++;
+    }
+    return count;
+  }
+
+  async function makeRotated(f, delta) {
+    const box = await findMoov(f);
+    if (!box) throw new Error("この動画の中に向きの情報が見つかりませんでした。MP4 か MOV の動画か確かめてください。");
+    const moov = await readBytes(f, box.start, box.size);
+    if (!rotateMoov(moov, delta)) throw new Error("この動画の中に映像が見つかりませんでした。");
+    return new Blob([f.slice(0, box.start), moov, f.slice(box.start + box.size)], { type: "video/mp4" });
+  }
+
+  // ---------- 保存 ----------
+  async function getDownloads() {
+    if (!window.claude || typeof window.claude.use !== "function") return null;
+    try { return await window.claude.use("downloads"); } catch { return null; }
+  }
+
+  saveBtn.addEventListener("click", async () => {
+    if (!file) return;
+    saveBtn.disabled = true;
+    setStatus("保存の準備をしています…");
+    try {
+      const blob = await makeRotated(file, angle);
+      const base = file.name.replace(/\.[^.]+$/, "");
+      const ext = (file.name.match(/\.([^.]+)$/) || [, "mp4"])[1].toLowerCase();
+      const downloads = await getDownloads();
+      if (downloads) {
+        // claude.ai の中では .mov で保存できないので .mp4 にする（中身はそのまま再生できます）
+        await downloads.save({ filename: `${base}_rotated.mp4`, data: blob });
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${base}_rotated.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      }
+      setStatus("保存しました。", "ok");
+    } catch (e) {
+      if (e && e.code === "declined") setStatus("保存をやめました。", "");
+      else setStatus((e && e.message) || "保存できませんでした。もう一度ためしてください。", "err");
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  layout();
+})();
+</script>
