@@ -182,6 +182,26 @@
   button:hover:not(:disabled) { border-color: var(--accent); }
   button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   button:disabled { opacity: .45; cursor: not-allowed; }
+  .dest {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  .dest-label { font-weight: 700; }
+  .dest-name {
+    flex: 1;
+    min-width: 8em;
+    font-family: var(--font-mono);
+    font-size: .85rem;
+    overflow-wrap: anywhere;
+  }
+  .dest-name.chosen { color: var(--accent); font-weight: 700; }
+  .dest-help { flex-basis: 100%; margin: 0; color: var(--muted); font-size: .8rem; }
   .clear-done { align-self: flex-start; border-color: var(--ok); color: var(--ok); }
   .card.done { border-color: var(--ok); }
   .card-status { margin: 0; min-height: 1.5em; font-size: .8rem; color: var(--muted); }
@@ -234,6 +254,14 @@
   <button type="button" class="clear-done" id="clearDone" hidden></button>
 
   <div class="list" id="list"></div>
+
+  <div class="dest" id="dest">
+    <span class="dest-label">保存先</span>
+    <span class="dest-name" id="destName">いつものダウンロード先</span>
+    <button type="button" id="pickDir">フォルダをえらぶ</button>
+    <button type="button" id="resetDir" hidden>いつもの場所にもどす</button>
+    <p class="dest-help" id="destHelp" hidden>このブラウザでは、ここで保存先を選べません。Chrome か Edge で開くと選べます。または、ブラウザの設定で「ダウンロード前に保存場所を確認する」をオンにすると、保存のたびに場所を聞かれるようになります。</p>
+  </div>
 
   <button type="button" class="save" id="save" disabled>保存する</button>
   <p class="status" id="status" role="status"></p>
@@ -470,11 +498,54 @@
   }
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  // ---------- 保存先のフォルダ（Chrome / Edge だけ） ----------
+  let dir = null;
+  const destName = $("destName"), pickDir = $("pickDir"), resetDir = $("resetDir"), destHelp = $("destHelp");
+  const inClaude = !!(window.claude && typeof window.claude.use === "function");
+
+  function showDest() {
+    destName.textContent = dir ? `📁 ${dir.name}` : "いつものダウンロード先";
+    destName.classList.toggle("chosen", !!dir);
+    resetDir.hidden = !dir;
+  }
+
+  if (inClaude) {
+    $("dest").hidden = true;   // claude.ai の中では保存のたびに確認画面が出るので不要
+  } else if (typeof window.showDirectoryPicker !== "function") {
+    pickDir.hidden = true;
+    destHelp.hidden = false;
+  }
+
+  pickDir.onclick = async () => {
+    try {
+      dir = await window.showDirectoryPicker({ id: "video-rotate", mode: "readwrite" });
+      showDest();
+      setStatus(statusEl, "status", `これからは「${dir.name}」フォルダに保存します。`);
+    } catch (e) {
+      if (e && e.name === "AbortError") return;   // えらぶのをやめた
+      setStatus(statusEl, "status", "そのフォルダは使えませんでした。別のフォルダをえらんでください。", "err");
+    }
+  };
+  resetDir.onclick = () => { dir = null; showDest(); setStatus(statusEl, "status", "いつものダウンロード先に保存します。"); };
+
+  // 同じ名前のファイルがあれば「名前 (2).mp4」のように番号をつける
+  async function freeName(folder, base, ext) {
+    for (let n = 1; ; n++) {
+      const name = n === 1 ? `${base}.${ext}` : `${base} (${n}).${ext}`;
+      try { await folder.getFileHandle(name); } catch { return name; }
+    }
+  }
+
   async function saveOne(it, downloads) {
     const blob = await makeRotated(it.file, it.angle);
     const base = it.file.name.replace(/\.[^.]+$/, "");
     const ext = (it.file.name.match(/\.([^.]+)$/) || [, "mp4"])[1].toLowerCase();
-    if (downloads) {
+    if (dir) {
+      const handle = await dir.getFileHandle(await freeName(dir, `${base}_rotated`, ext), { create: true });
+      const out = await handle.createWritable();
+      await out.write(blob);
+      await out.close();
+    } else if (downloads) {
       // claude.ai の中では .mov で保存できないので .mp4 にする（中身はそのまま再生できます）
       await downloads.save({ filename: `${base}_rotated.mp4`, data: blob });
     } else {
@@ -497,7 +568,17 @@
     }
     if (!targets.length) return;
     saveBtn.disabled = true;
-    const downloads = await getDownloads();
+    if (dir) {
+      // 前にえらんだフォルダへ書きこんでよいか、ブラウザが確認してくることがある
+      let perm = "denied";
+      try { perm = await dir.requestPermission({ mode: "readwrite" }); } catch {}
+      if (perm !== "granted") {
+        setStatus(statusEl, "status", `「${dir.name}」フォルダに保存する許可がありません。もう一度フォルダをえらんでください。`, "err");
+        refreshSummary();
+        return;
+      }
+    }
+    const downloads = dir ? null : await getDownloads();
     let done = 0, failed = 0;
     for (const it of targets) {
       setStatus(statusEl, "status", `保存しています… (${done + failed + 1} / ${targets.length})`);
@@ -513,7 +594,7 @@
       }
     }
     if (failed) setStatus(statusEl, "status", `${done}本を保存しました。${failed}本は保存できませんでした（それぞれの動画の下を見てください）。`, "err");
-    else setStatus(statusEl, "status", `${done}本を保存しました。`, "ok");
+    else setStatus(statusEl, "status", dir ? `${done}本を「${dir.name}」フォルダに保存しました。` : `${done}本を保存しました。`, "ok");
     refreshSummary();
   });
 
