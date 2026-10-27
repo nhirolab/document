@@ -182,6 +182,8 @@
   button:hover:not(:disabled) { border-color: var(--accent); }
   button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   button:disabled { opacity: .45; cursor: not-allowed; }
+  .clear-done { align-self: flex-start; border-color: var(--ok); color: var(--ok); }
+  .card.done { border-color: var(--ok); }
   .card-status { margin: 0; min-height: 1.5em; font-size: .8rem; color: var(--muted); }
   .card-status.ok { color: var(--ok); }
   .card-status.err { color: var(--err); }
@@ -229,6 +231,8 @@
     <span class="count" id="count"></span>
   </div>
 
+  <button type="button" class="clear-done" id="clearDone" hidden></button>
+
   <div class="list" id="list"></div>
 
   <button type="button" class="save" id="save" disabled>保存する</button>
@@ -247,9 +251,9 @@
   const $ = (id) => document.getElementById(id);
   const fileInput = $("file"), pick = $("pick"), list = $("list");
   const sample = $("sample"), bulk = $("bulk"), countEl = $("count");
-  const saveBtn = $("save"), statusEl = $("status");
+  const saveBtn = $("save"), statusEl = $("status"), clearDone = $("clearDone");
 
-  let items = [];   // { file, angle, aspect, url, card, stage, video, ghost, badge, msg, statusEl }
+  let items = [];   // { file, angle, saved, aspect, url, card, stage, video, ghost, badge, msg, statusEl }
 
   // ---------- 画面の表示 ----------
   function setStatus(el, base, text, kind) {
@@ -271,15 +275,31 @@
   }
 
   function refreshSummary() {
-    const turned = items.filter((it) => it.angle !== 0).length;
+    const turned = items.filter((it) => it.angle !== 0 && !it.saved).length;
     sample.hidden = items.length > 0;
     bulk.hidden = items.length === 0;
     countEl.textContent = `${items.length}本中 ${turned}本を回す`;
     saveBtn.disabled = turned === 0;
     saveBtn.textContent = turned > 1 ? `${turned}本まとめて保存する` : "保存する";
+    const saved = items.filter((it) => it.saved).length;
+    clearDone.hidden = saved === 0;
+    clearDone.textContent = `✓ 保存がすんだ動画を一覧からはずす（${saved}本）`;
+  }
+
+  function markSaved(it, saved) {
+    it.saved = saved;
+    it.card.classList.toggle("done", saved);
+  }
+
+  function removeItem(it) {
+    URL.revokeObjectURL(it.url);
+    ro.unobserve(it.stage);
+    it.card.remove();
+    items = items.filter((x) => x !== it);
   }
 
   function setAngle(it, angle) {
+    markSaved(it, false);
     it.angle = ((angle % 360) + 360) % 360;
     layout(it);
     setStatus(it.statusEl, "card-status", it.angle === 0 ? "そのまま（保存しません）" : `時計回りに ${it.angle}° 回します`);
@@ -291,6 +311,12 @@
   $("allRight").onclick = () => turnAll(90);
   $("allFlip").onclick = () => turnAll(180);
   $("allReset").onclick = () => { items.forEach((it) => setAngle(it, 0)); refreshSummary(); };
+  clearDone.onclick = () => {
+    const n = items.filter((it) => it.saved).length;
+    items.filter((it) => it.saved).forEach(removeItem);
+    refreshSummary();
+    setStatus(statusEl, "status", `保存がすんだ ${n}本を一覧からはずしました。`);
+  };
 
   const ro = new ResizeObserver(() => items.forEach(layout));
 
@@ -338,13 +364,7 @@
       layout(it);
     });
     card.querySelectorAll(".turns button").forEach((b) => (b.onclick = () => turn(it, Number(b.dataset.d))));
-    card.querySelector(".remove").onclick = () => {
-      URL.revokeObjectURL(it.url);
-      ro.unobserve(it.stage);
-      card.remove();
-      items = items.filter((x) => x !== it);
-      refreshSummary();
-    };
+    card.querySelector(".remove").onclick = () => { removeItem(it); refreshSummary(); };
 
     it.video.src = it.url;
     list.appendChild(card);
@@ -470,7 +490,11 @@
   }
 
   saveBtn.addEventListener("click", async () => {
-    const targets = items.filter((it) => it.angle !== 0);
+    const targets = items.filter((it) => it.angle !== 0 && !it.saved);
+    if (!targets.length) {
+      setStatus(statusEl, "status", "回した動画はもう全部保存してあります。");
+      return;
+    }
     if (!targets.length) return;
     saveBtn.disabled = true;
     const downloads = await getDownloads();
@@ -480,7 +504,8 @@
       try {
         await saveOne(it, downloads);
         done++;
-        setStatus(it.statusEl, "card-status", "保存しました", "ok");
+        markSaved(it, true);
+        setStatus(it.statusEl, "card-status", "✓ 保存しました", "ok");
       } catch (e) {
         failed++;
         const text = e && e.code === "declined" ? "保存をやめました" : (e && e.message) || "保存できませんでした";
