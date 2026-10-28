@@ -1,0 +1,631 @@
+<title>動画くるっと回転</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%232447b8%22%2F%3E%3Cpath%20d%3D%22M50.8%2038.8A20%2020%200%201%201%2047.3%2019.1%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M52.6%2025.4%2050.9%2013.6%2041.4%2021.6Z%22%20fill%3D%22%23fff%22%2F%3E%3Cpath%20d%3D%22M27%2022.5v19l15-9.5z%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E">
+<style>
+  /* Layout: one column — pick videos, turn each one (or all at once), save them all. */
+  :root {
+    --bg: #eef1f6;
+    --surface: #ffffff;
+    --fg: #17202e;
+    --muted: #5b6678;
+    --line: #cfd6e2;
+    --accent: #2447b8;
+    --accent-fg: #ffffff;
+    --stage: #0f1520;
+    --ok: #1d7a4c;
+    --err: #b3261e;
+    --font-body: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans JP", system-ui, sans-serif;
+    --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151e; --surface: #18202c; --fg: #e6ebf3; --muted: #9aa5b8; --line: #2c3748;
+      --accent: #7f9cff; --accent-fg: #0d1430; --stage: #070a10; --ok: #5ccf94; --err: #ff8a80;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151e; --surface: #18202c; --fg: #e6ebf3; --muted: #9aa5b8; --line: #2c3748;
+    --accent: #7f9cff; --accent-fg: #0d1430; --stage: #070a10; --ok: #5ccf94; --err: #ff8a80;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+    padding-block: 28px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-wrap: balance;
+  }
+  .lead { margin: 4px 0 0; color: var(--muted); }
+
+  .pick {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 22px 16px;
+    border: 2px dashed var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s;
+  }
+  .pick:hover, .pick.drag, .pick:focus-within { border-color: var(--accent); }
+  .pick strong { font-size: 1.05rem; }
+  .pick span { color: var(--muted); font-size: .85rem; }
+  .pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+  .bulk {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+  }
+  .bulk .label { font-weight: 700; margin-right: 4px; }
+  .bulk .count { color: var(--muted); font-size: .9rem; margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  .list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    min-width: 0;
+  }
+  .card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .card-name {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: .8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .remove {
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: .8rem;
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .stage {
+    position: relative;
+    width: 100%;
+    height: 220px;
+    background: var(--stage);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .stage.big { height: min(50vh, 380px); }
+  .stage video, .stage .ghost {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) rotate(0deg);
+    transition: transform .3s ease;
+  }
+  .stage .ghost {
+    display: grid;
+    place-items: center;
+    border: 2px solid #ffffff55;
+    border-radius: 8px;
+    color: #ffffffcc;
+    font-weight: 700;
+    font-size: 1.6rem;
+  }
+  #sampleGhost { width: min(80%, 420px); aspect-ratio: 16 / 9; max-height: 80%; }
+  .stage .msg {
+    position: absolute;
+    left: 10px; right: 10px; bottom: 8px;
+    color: #ffffffcc;
+    font-size: .75rem;
+    text-align: center;
+  }
+  .badge {
+    position: absolute;
+    top: 8px; right: 8px;
+    padding: 1px 9px;
+    border-radius: 999px;
+    background: #00000099;
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: .8rem;
+    font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stage video, .stage .ghost { transition: none; }
+  }
+
+  .turns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  button {
+    font: inherit;
+    font-weight: 700;
+    min-height: 44px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1.5px solid var(--line);
+    background: var(--surface);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .dest {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  .dest-label { font-weight: 700; }
+  .dest-name {
+    flex: 1;
+    min-width: 8em;
+    font-family: var(--font-mono);
+    font-size: .85rem;
+    overflow-wrap: anywhere;
+  }
+  .dest-name.chosen { color: var(--accent); font-weight: 700; }
+  .dest-help { flex-basis: 100%; margin: 0; color: var(--muted); font-size: .8rem; }
+  .clear-done { align-self: flex-start; border-color: var(--ok); color: var(--ok); }
+  .card.done { border-color: var(--ok); }
+  .card-status { margin: 0; min-height: 1.5em; font-size: .8rem; color: var(--muted); }
+  .card-status.ok { color: var(--ok); }
+  .card-status.err { color: var(--err); }
+
+  .save {
+    width: 100%;
+    min-height: 56px;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
+    font-size: 1.1rem;
+  }
+  .status { min-height: 1.7em; margin: 0; font-size: .9rem; color: var(--muted); }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
+
+  .notes { margin: 0; padding-left: 1.2em; color: var(--muted); font-size: .85rem; }
+  .notes li + li { margin-top: 4px; }
+
+  .gift {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .8rem;
+  }
+  .gift p { margin: 0; }
+  .gift .gift-name { color: var(--fg); font-weight: 700; font-size: .9rem; }
+  .gift a { color: var(--accent); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>動画くるっと回転</h1>
+    <p class="lead">動画を選んで、向きを直して、保存するだけ。何本でもまとめてできます。</p>
+  </header>
+
+  <label class="pick" id="pick">
+    <input type="file" id="file" multiple accept="video/mp4,video/quicktime,.mp4,.mov,.m4v">
+    <strong>動画をえらぶ（何本でもOK）</strong>
+    <span>ここをタップ（またはファイルをドラッグ）・MP4 / MOV</span>
+  </label>
+
+  <div class="stage big" id="sample">
+    <div class="ghost" id="sampleGhost">▶</div>
+    <div class="badge">0°</div>
+    <div class="msg">動画をえらぶと、ここに1本ずつならびます</div>
+  </div>
+
+  <div class="bulk" id="bulk" hidden>
+    <span class="label">全部まとめて</span>
+    <button type="button" id="allLeft">⟲ 左に90°</button>
+    <button type="button" id="allFlip">↻ 180°</button>
+    <button type="button" id="allRight">⟳ 右に90°</button>
+    <button type="button" id="allReset">元にもどす</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <button type="button" class="clear-done" id="clearDone" hidden></button>
+
+  <div class="list" id="list"></div>
+
+  <div class="dest" id="dest">
+    <span class="dest-label">保存先</span>
+    <span class="dest-name" id="destName">いつものダウンロード先</span>
+    <button type="button" id="pickDir">フォルダをえらぶ</button>
+    <button type="button" id="resetDir" hidden>いつもの場所にもどす</button>
+    <p class="dest-help" id="destHelp" hidden>このブラウザでは、ここで保存先を選べません。Chrome か Edge で開くと選べます。または、ブラウザの設定で「ダウンロード前に保存場所を確認する」をオンにすると、保存のたびに場所を聞かれるようになります。</p>
+  </div>
+
+  <button type="button" class="save" id="save" disabled>保存する</button>
+  <p class="status" id="status" role="status"></p>
+
+  <ul class="notes">
+    <li>インターネットにつながっていなくても使えます。動画はこの端末の中だけで処理し、どこにも送りません。</li>
+    <li>映像を作り直さず「向きの情報」だけを書きかえるので、画質は落ちず、一瞬で終わります。</li>
+    <li>回した動画だけを保存します。何本も保存するとき、ブラウザが「複数のファイルをダウンロードしますか？」と聞いてきたら「許可」を押してください。</li>
+    <li>ごく一部の古い再生ソフトは向きの情報を読まないため、回っていないように見えることがあります。</li>
+  </ul>
+
+  <footer class="gift">
+    <p class="gift-name">メルマガ「平日30分のAI創作ログ」登録者限定プレゼント</p>
+    <p>忙しい会社員のための、AI創作の手順書 ／ 発行：なぎかぜ</p>
+    <p>このアプリを、ほかの人に渡したり、ネットに公開したりするのはご遠慮ください。</p>
+    <p id="signupRow" hidden>まわりの人にすすめたいときは、<a id="signup" href="#" target="_blank" rel="noopener">メルマガの登録ページ</a>を教えてあげてください。</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  // メルマガの登録ページのURL。決まったら "" の中に入れると、画面の下に案内が出ます。
+  const SIGNUP_URL = "";
+
+  const $ = (id) => document.getElementById(id);
+  if (SIGNUP_URL) {
+    $("signup").href = SIGNUP_URL;
+    $("signupRow").hidden = false;
+  }
+  const fileInput = $("file"), pick = $("pick"), list = $("list");
+  const sample = $("sample"), bulk = $("bulk"), countEl = $("count");
+  const saveBtn = $("save"), statusEl = $("status"), clearDone = $("clearDone");
+
+  let items = [];   // { file, angle, saved, aspect, url, card, stage, video, ghost, badge, msg, statusEl }
+
+  // ---------- 画面の表示 ----------
+  function setStatus(el, base, text, kind) {
+    el.textContent = text;
+    el.className = base + (kind ? " " + kind : "");
+  }
+
+  function layout(it) {
+    const el = it.video.hidden ? it.ghost : it.video;
+    const cw = it.stage.clientWidth - 16, ch = it.stage.clientHeight - 16;
+    if (cw <= 0 || ch <= 0) return;
+    const turned = it.angle % 180 !== 0;
+    const ar = turned ? 1 / it.aspect : it.aspect;   // 回したあとの横÷縦
+    const w = Math.min(cw, ch * ar), h = w / ar;
+    el.style.width = (turned ? h : w) + "px";
+    el.style.height = (turned ? w : h) + "px";
+    el.style.transform = `translate(-50%, -50%) rotate(${it.angle}deg)`;
+    it.badge.textContent = it.angle + "°";
+  }
+
+  function refreshSummary() {
+    const turned = items.filter((it) => it.angle !== 0 && !it.saved).length;
+    sample.hidden = items.length > 0;
+    bulk.hidden = items.length === 0;
+    countEl.textContent = `${items.length}本中 ${turned}本を回す`;
+    saveBtn.disabled = turned === 0;
+    saveBtn.textContent = turned > 1 ? `${turned}本まとめて保存する` : "保存する";
+    const saved = items.filter((it) => it.saved).length;
+    clearDone.hidden = saved === 0;
+    clearDone.textContent = `✓ 保存がすんだ動画を一覧からはずす（${saved}本）`;
+  }
+
+  function markSaved(it, saved) {
+    it.saved = saved;
+    it.card.classList.toggle("done", saved);
+  }
+
+  function removeItem(it) {
+    URL.revokeObjectURL(it.url);
+    ro.unobserve(it.stage);
+    it.card.remove();
+    items = items.filter((x) => x !== it);
+  }
+
+  function setAngle(it, angle) {
+    markSaved(it, false);
+    it.angle = ((angle % 360) + 360) % 360;
+    layout(it);
+    setStatus(it.statusEl, "card-status", it.angle === 0 ? "そのまま（保存しません）" : `時計回りに ${it.angle}° 回します`);
+  }
+  const turn = (it, delta) => { setAngle(it, it.angle + delta); refreshSummary(); };
+  const turnAll = (delta) => { items.forEach((it) => setAngle(it, it.angle + delta)); refreshSummary(); };
+
+  $("allLeft").onclick = () => turnAll(-90);
+  $("allRight").onclick = () => turnAll(90);
+  $("allFlip").onclick = () => turnAll(180);
+  $("allReset").onclick = () => { items.forEach((it) => setAngle(it, 0)); refreshSummary(); };
+  clearDone.onclick = () => {
+    const n = items.filter((it) => it.saved).length;
+    items.filter((it) => it.saved).forEach(removeItem);
+    refreshSummary();
+    setStatus(statusEl, "status", `保存がすんだ ${n}本を一覧からはずしました。`);
+  };
+
+  const ro = new ResizeObserver(() => items.forEach(layout));
+
+  // ---------- 動画をえらぶ ----------
+  const isVideo = (f) => /\.(mp4|mov|m4v)$/i.test(f.name) || /^video\/(mp4|quicktime)/.test(f.type);
+
+  function addCard(file) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="card-head">
+        <span class="card-name"></span>
+        <button type="button" class="remove">はずす</button>
+      </div>
+      <div class="stage">
+        <div class="ghost" hidden>▶</div>
+        <video muted playsinline controls preload="metadata"></video>
+        <div class="badge">0°</div>
+        <div class="msg"></div>
+      </div>
+      <div class="turns">
+        <button type="button" data-d="-90">⟲ 左90°</button>
+        <button type="button" data-d="180">↻ 180°</button>
+        <button type="button" data-d="90">⟳ 右90°</button>
+      </div>
+      <p class="card-status" role="status"></p>`;
+    const it = {
+      file, angle: 0, aspect: 16 / 9, url: URL.createObjectURL(file), card,
+      stage: card.querySelector(".stage"), video: card.querySelector("video"),
+      ghost: card.querySelector(".ghost"), badge: card.querySelector(".badge"),
+      msg: card.querySelector(".msg"), statusEl: card.querySelector(".card-status"),
+    };
+    const name = card.querySelector(".card-name");
+    name.textContent = file.name;
+    name.title = file.name;
+
+    it.video.addEventListener("loadedmetadata", () => {
+      if (it.video.videoWidth && it.video.videoHeight) it.aspect = it.video.videoWidth / it.video.videoHeight;
+      layout(it);
+    });
+    it.video.addEventListener("error", () => {
+      it.video.hidden = true;
+      it.ghost.hidden = false;
+      it.msg.textContent = "このブラウザでは再生できない形式です。回転と保存はできます。";
+      layout(it);
+    });
+    card.querySelectorAll(".turns button").forEach((b) => (b.onclick = () => turn(it, Number(b.dataset.d))));
+    card.querySelector(".remove").onclick = () => { removeItem(it); refreshSummary(); };
+
+    it.video.src = it.url;
+    list.appendChild(card);
+    items.push(it);
+    ro.observe(it.stage);
+    setAngle(it, 0);
+  }
+
+  function loadFiles(fileList) {
+    const files = Array.from(fileList || []);
+    const ok = files.filter(isVideo);
+    ok.forEach(addCard);
+    refreshSummary();
+    const skipped = files.length - ok.length;
+    if (skipped) setStatus(statusEl, "status", `MP4 / MOV ではないファイルが ${skipped} 個あったので、はずしました。`, "err");
+    else if (ok.length) setStatus(statusEl, "status", "回したい向きのボタンをおしてください。");
+  }
+
+  fileInput.addEventListener("change", () => { loadFiles(fileInput.files); fileInput.value = ""; });
+  ["dragenter", "dragover"].forEach((t) => pick.addEventListener(t, (e) => { e.preventDefault(); pick.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach((t) => pick.addEventListener(t, (e) => { e.preventDefault(); pick.classList.remove("drag"); }));
+  pick.addEventListener("drop", (e) => loadFiles(e.dataTransfer.files));
+
+  // ---------- MP4 / MOV の「向きの情報」を書きかえる ----------
+  async function readBytes(blob, start, length) {
+    return new Uint8Array(await blob.slice(start, start + length).arrayBuffer());
+  }
+  const typeOf = (u8, i) => String.fromCharCode(u8[i], u8[i + 1], u8[i + 2], u8[i + 3]);
+
+  // ファイルの一番外側から moov 箱をさがす（大きな動画でも全部は読まない）
+  async function findMoov(blob) {
+    let pos = 0;
+    while (pos + 8 <= blob.size) {
+      const h = await readBytes(blob, pos, 16);
+      const dv = new DataView(h.buffer);
+      let size = dv.getUint32(0), hdr = 8;
+      const type = typeOf(h, 4);
+      if (size === 1) { size = dv.getUint32(8) * 2 ** 32 + dv.getUint32(12); hdr = 16; }
+      else if (size === 0) size = blob.size - pos;
+      if (size < hdr) break;
+      if (type === "moov") return { start: pos, size };
+      pos += size;
+    }
+    return null;
+  }
+
+  function* boxes(dv, start, end) {
+    let p = start;
+    while (p + 8 <= end) {
+      let size = dv.getUint32(p), hdr = 8;
+      if (size === 1) { size = dv.getUint32(p + 8) * 2 ** 32 + dv.getUint32(p + 12); hdr = 16; }
+      else if (size === 0) size = end - p;
+      if (size < hdr || p + size > end) return;
+      yield { type: typeOf(new Uint8Array(dv.buffer), p + 4), start: p, body: p + hdr, end: p + size };
+      p += size;
+    }
+  }
+  const child = (dv, box, type) => { for (const b of boxes(dv, box.body, box.end)) if (b.type === type) return b; return null; };
+
+  // 映像トラックの tkhd にある回転の行列を（今の向き＋delta）に書きかえる
+  function rotateMoov(moov, delta) {
+    const dv = new DataView(moov.buffer);
+    const root = { body: 8, end: moov.length };
+    if (dv.getUint32(0) === 1) root.body = 16;
+    let count = 0;
+    for (const trak of boxes(dv, root.body, root.end)) {
+      if (trak.type !== "trak") continue;
+      const mdia = child(dv, trak, "mdia");
+      const hdlr = mdia && child(dv, mdia, "hdlr");
+      if (!hdlr || typeOf(moov, hdlr.body + 8) !== "vide") continue;
+      const tkhd = child(dv, trak, "tkhd");
+      if (!tkhd) continue;
+      const version = dv.getUint8(tkhd.body);
+      const m = tkhd.body + 4 + (version === 1 ? 32 : 20) + 16;
+      const a = dv.getInt32(m) / 65536, b = dv.getInt32(m + 4) / 65536;
+      const current = Math.round(Math.atan2(b, a) * 180 / Math.PI / 90) * 90;
+      const next = (((current + delta) % 360) + 360) % 360;
+      const cos = Math.round(Math.cos(next * Math.PI / 180));
+      const sin = Math.round(Math.sin(next * Math.PI / 180));
+      dv.setInt32(m, cos * 65536);       // a
+      dv.setInt32(m + 4, sin * 65536);   // b
+      dv.setInt32(m + 12, -sin * 65536); // c
+      dv.setInt32(m + 16, cos * 65536);  // d
+      dv.setInt32(m + 24, 0);            // x
+      dv.setInt32(m + 28, 0);            // y
+      count++;
+    }
+    return count;
+  }
+
+  async function makeRotated(f, delta) {
+    const box = await findMoov(f);
+    if (!box) throw new Error("向きの情報が見つかりませんでした。MP4 か MOV の動画か確かめてください。");
+    const moov = await readBytes(f, box.start, box.size);
+    if (!rotateMoov(moov, delta)) throw new Error("この動画の中に映像が見つかりませんでした。");
+    return new Blob([f.slice(0, box.start), moov, f.slice(box.start + box.size)], { type: "video/mp4" });
+  }
+
+  // ---------- 保存 ----------
+  async function getDownloads() {
+    if (!window.claude || typeof window.claude.use !== "function") return null;
+    try { return await window.claude.use("downloads"); } catch { return null; }
+  }
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // ---------- 保存先のフォルダ（Chrome / Edge だけ） ----------
+  let dir = null;
+  const destName = $("destName"), pickDir = $("pickDir"), resetDir = $("resetDir"), destHelp = $("destHelp");
+  const inClaude = !!(window.claude && typeof window.claude.use === "function");
+
+  function showDest() {
+    destName.textContent = dir ? `📁 ${dir.name}` : "いつものダウンロード先";
+    destName.classList.toggle("chosen", !!dir);
+    resetDir.hidden = !dir;
+  }
+
+  if (inClaude) {
+    $("dest").hidden = true;   // claude.ai の中では保存のたびに確認画面が出るので不要
+  } else if (typeof window.showDirectoryPicker !== "function") {
+    pickDir.hidden = true;
+    destHelp.hidden = false;
+  }
+
+  pickDir.onclick = async () => {
+    try {
+      dir = await window.showDirectoryPicker({ id: "video-rotate", mode: "readwrite" });
+      showDest();
+      setStatus(statusEl, "status", `これからは「${dir.name}」フォルダに保存します。`);
+    } catch (e) {
+      if (e && e.name === "AbortError") return;   // えらぶのをやめた
+      setStatus(statusEl, "status", "そのフォルダは使えませんでした。別のフォルダをえらんでください。", "err");
+    }
+  };
+  resetDir.onclick = () => { dir = null; showDest(); setStatus(statusEl, "status", "いつものダウンロード先に保存します。"); };
+
+  // 同じ名前のファイルがあれば「名前 (2).mp4」のように番号をつける
+  async function freeName(folder, base, ext) {
+    for (let n = 1; ; n++) {
+      const name = n === 1 ? `${base}.${ext}` : `${base} (${n}).${ext}`;
+      try { await folder.getFileHandle(name); } catch { return name; }
+    }
+  }
+
+  async function saveOne(it, downloads) {
+    const blob = await makeRotated(it.file, it.angle);
+    const base = it.file.name.replace(/\.[^.]+$/, "");
+    const ext = (it.file.name.match(/\.([^.]+)$/) || [, "mp4"])[1].toLowerCase();
+    if (dir) {
+      const handle = await dir.getFileHandle(await freeName(dir, `${base}_rotated`, ext), { create: true });
+      const out = await handle.createWritable();
+      await out.write(blob);
+      await out.close();
+    } else if (downloads) {
+      // claude.ai の中では .mov で保存できないので .mp4 にする（中身はそのまま再生できます）
+      await downloads.save({ filename: `${base}_rotated.mp4`, data: blob });
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${base}_rotated.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      await wait(400);   // 続けてダウンロードするとブラウザに止められることがあるので少し待つ
+    }
+  }
+
+  saveBtn.addEventListener("click", async () => {
+    const targets = items.filter((it) => it.angle !== 0 && !it.saved);
+    if (!targets.length) {
+      setStatus(statusEl, "status", "回した動画はもう全部保存してあります。");
+      return;
+    }
+    if (!targets.length) return;
+    saveBtn.disabled = true;
+    if (dir) {
+      // 前にえらんだフォルダへ書きこんでよいか、ブラウザが確認してくることがある
+      let perm = "denied";
+      try { perm = await dir.requestPermission({ mode: "readwrite" }); } catch {}
+      if (perm !== "granted") {
+        setStatus(statusEl, "status", `「${dir.name}」フォルダに保存する許可がありません。もう一度フォルダをえらんでください。`, "err");
+        refreshSummary();
+        return;
+      }
+    }
+    const downloads = dir ? null : await getDownloads();
+    let done = 0, failed = 0;
+    for (const it of targets) {
+      setStatus(statusEl, "status", `保存しています… (${done + failed + 1} / ${targets.length})`);
+      try {
+        await saveOne(it, downloads);
+        done++;
+        markSaved(it, true);
+        setStatus(it.statusEl, "card-status", "✓ 保存しました", "ok");
+      } catch (e) {
+        failed++;
+        const text = e && e.code === "declined" ? "保存をやめました" : (e && e.message) || "保存できませんでした";
+        setStatus(it.statusEl, "card-status", text, "err");
+      }
+    }
+    if (failed) setStatus(statusEl, "status", `${done}本を保存しました。${failed}本は保存できませんでした（それぞれの動画の下を見てください）。`, "err");
+    else setStatus(statusEl, "status", dir ? `${done}本を「${dir.name}」フォルダに保存しました。` : `${done}本を保存しました。`, "ok");
+    refreshSummary();
+  });
+
+  refreshSummary();
+})();
+</script>

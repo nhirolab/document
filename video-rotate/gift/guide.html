@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>動画くるっと回転 使い方ガイド</title>
+<!-- PDF を作るときだけ使うフォント（build.js が読み込む） -->
+<link rel="stylesheet" href="noto-local.css">
+<style>
+  @page { size: A4; margin: 18mm 18mm 20mm; }
+  :root {
+    --fg: #17202e;
+    --muted: #5b6678;
+    --line: #cfd6e2;
+    --soft: #eef1f6;
+    --accent: #2447b8;
+    --ok: #1d7a4c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    color: var(--fg);
+    font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.85;
+  }
+  h1, h2, h3 { line-height: 1.4; margin: 0; }
+  p { margin: 0; }
+  .page { break-after: page; display: flex; flex-direction: column; gap: 14pt; }
+  .page:last-child { break-after: auto; }
+
+  /* 表紙 */
+  .cover { min-height: 255mm; justify-content: center; gap: 18pt; }
+  .cover .icon { width: 30mm; height: 30mm; }
+  .cover .kicker { color: var(--accent); font-weight: 700; letter-spacing: .08em; }
+  .cover h1 { font-size: 30pt; font-weight: 900; }
+  .cover .sub { font-size: 13pt; color: var(--muted); }
+  .cover .by { margin-top: 30pt; padding-top: 12pt; border-top: 1px solid var(--line); color: var(--muted); }
+  .cover .by strong { color: var(--fg); }
+
+  h2 {
+    font-size: 16pt;
+    font-weight: 900;
+    padding-bottom: 6pt;
+    border-bottom: 2px solid var(--accent);
+  }
+  h3 { font-size: 12pt; font-weight: 700; }
+
+  .letter { display: flex; flex-direction: column; gap: 10pt; }
+  .sign { text-align: right; font-weight: 700; }
+
+  .box {
+    padding: 10pt 14pt;
+    background: var(--soft);
+    border-radius: 8pt;
+  }
+  .box ul { margin: 0; padding-left: 1.2em; }
+
+  .step { display: flex; flex-direction: column; gap: 8pt; break-inside: avoid; }
+  .step-head { display: flex; align-items: baseline; gap: 10pt; }
+  .num {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    width: 22pt; height: 22pt;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 900;
+    font-size: 11pt;
+    line-height: 1;
+  }
+  .shot {
+    display: block;
+    max-width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 6pt;
+  }
+  .shot.half { max-width: 62%; }
+  .note { color: var(--muted); font-size: 9.5pt; }
+  .key {
+    display: inline-block;
+    padding: 0 6pt;
+    border: 1px solid var(--line);
+    border-radius: 4pt;
+    background: #fff;
+    font-weight: 700;
+    line-height: 1.6;
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; vertical-align: top; padding: 6pt 8pt; border-bottom: 1px solid var(--line); }
+  th { width: 34%; font-weight: 700; }
+
+  .qa { display: flex; flex-direction: column; gap: 10pt; }
+  .qa div { break-inside: avoid; }
+  .qa dt { font-weight: 700; }
+  .qa dt::before { content: "Q. "; color: var(--accent); }
+  .qa dd { margin: 2pt 0 0; }
+  .qa dd::before { content: "A. "; color: var(--ok); font-weight: 700; }
+
+  .rules ol { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column; gap: 4pt; }
+  .end { margin-top: 10pt; padding-top: 10pt; border-top: 1px solid var(--line); color: var(--muted); font-size: 9.5pt; }
+</style>
+</head>
+<body>
+
+<section class="page cover">
+  <img class="icon" src="../icon.svg" alt="">
+  <p class="kicker">メルマガ「平日30分のAI創作ログ」登録者限定プレゼント</p>
+  <h1>動画くるっと回転<br>使い方ガイド</h1>
+  <p class="sub">横になった動画の向きを直して、保存するだけのアプリです。</p>
+  <p class="by"><strong>平日30分のAI創作ログ</strong><br>忙しい会社員のための、AI創作の手順書<br>発行：なぎかぜ</p>
+</section>
+
+<section class="page">
+  <h2>はじめに</h2>
+  <div class="letter">
+    <p>メルマガ「平日30分のAI創作ログ」にご登録いただき、ありがとうございます。なぎかぜです。</p>
+    <p>このメルマガでは、仕事で忙しい会社員でも、平日の30分でAIを使った創作を進められるように、実際にやっている手順をそのままお届けしています。</p>
+    <p>登録のお礼に、動画の向きを直すアプリ「動画くるっと回転」をお贈りします。スマホで撮った動画が、パソコンで見たら横になっていた。そんなときに、向きを直して保存するだけのシンプルなアプリです。</p>
+    <p>じつはこのアプリも、AIと一緒に作りました。「こういう道具がほしい」とAIに伝えて、少しずつ形にしていったものです。こうした作り方も、メルマガでお話ししていきます。</p>
+    <p>これから、どうぞよろしくお願いします。</p>
+    <p class="sign">なぎかぜ</p>
+  </div>
+
+  <h3>このアプリでできること</h3>
+  <div class="box">
+    <ul>
+      <li>動画を 90°・180° 回して、新しいファイルとして保存できます。</li>
+      <li>何本でも、まとめて回して保存できます。</li>
+      <li>画質は落ちません。映像を作り直さず、「向きの情報」だけを書きかえるからです。</li>
+      <li>インターネットにつながなくても使えます。動画はパソコンの中だけで処理し、どこにも送りません。</li>
+    </ul>
+  </div>
+
+  <h3>使うときに必要なもの</h3>
+  <table>
+    <tr><th>パソコン</th><td>Windows か Mac</td></tr>
+    <tr><th>ブラウザ</th><td><strong>Chrome</strong> か <strong>Edge</strong> がおすすめです。Safari や Firefox でも使えますが、保存先のフォルダは選べません。</td></tr>
+    <tr><th>動画の形式</th><td>MP4 か MOV（スマホで撮った動画は、たいていどちらかです）</td></tr>
+    <tr><th>インターネット</th><td>いりません</td></tr>
+  </table>
+</section>
+
+<section class="page">
+  <h2>使い方</h2>
+
+  <div class="step">
+    <div class="step-head"><span class="num">1</span><h3>ZIP ファイルを開く（展開する）</h3></div>
+    <p>ダウンロードした ZIP ファイルを、ふつうのフォルダに戻します。</p>
+    <ul>
+      <li><strong>Windows：</strong>ZIP ファイルを右クリック →「すべて展開」→「展開」</li>
+      <li><strong>Mac：</strong>ZIP ファイルをダブルクリック</li>
+    </ul>
+    <p class="note">展開しないまま開くと、うまく動かないことがあります。</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><span class="num">2</span><h3>アプリを開く</h3></div>
+    <p>展開したフォルダの中の「<strong>動画くるっと回転.html</strong>」をダブルクリックします。ブラウザでアプリが開きます。</p>
+    <p class="note">Chrome や Edge 以外で開いてしまったときは、ファイルを右クリック →「プログラムから開く」（Mac は「このアプリケーションで開く」）→ Chrome か Edge を選んでください。</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><span class="num">3</span><h3>動画をえらぶ</h3></div>
+    <p>「<strong>動画をえらぶ（何本でもOK）</strong>」を押して、向きを直したい動画を選びます。何本でもまとめて選べます。動画のファイルを、この枠の中にドラッグして入れることもできます。</p>
+    <img class="shot" src="img/01-start.png" alt="アプリを開いたときの画面">
+  </div>
+</section>
+
+<section class="page">
+  <div class="step">
+    <div class="step-head"><span class="num">4</span><h3>向きを直す</h3></div>
+    <p>動画ごとに、ボタンで向きを変えます。押すたびに、画面の動画も一緒に回ります。右上の数字が、いま回している角度です。</p>
+    <img class="shot half" src="img/03-turn.png" alt="動画を右に90°回したところ">
+    <p>全部の動画を同じ向きに回したいときは、上にある「<strong>全部まとめて</strong>」のボタンが便利です。</p>
+    <img class="shot" src="img/04-bulk.png" alt="全部まとめて回すボタン">
+  </div>
+
+  <div class="step">
+    <div class="step-head"><span class="num">5</span><h3>保存先をえらぶ（Chrome・Edge のとき）</h3></div>
+    <p>「<strong>フォルダをえらぶ</strong>」を押して、保存したいフォルダを選びます。ブラウザに「書き込みを許可しますか？」と聞かれたら、「許可」を押してください。選ばないときは、いつもの「ダウンロード」フォルダに保存されます。</p>
+    <img class="shot" src="img/05-dest.png" alt="保存先のフォルダを選んだところ">
+    <p class="note">選んだフォルダは、アプリを閉じると忘れます。次に使うときは、もう一度選んでください。</p>
+  </div>
+</section>
+
+<section class="page">
+  <div class="step">
+    <div class="step-head"><span class="num">6</span><h3>保存する</h3></div>
+    <p>「<strong>保存する</strong>」を押すと、回した動画だけが保存されます。保存が終わった動画は、枠が緑色になります。</p>
+    <p>保存されるファイルの名前は、元の名前のうしろに「_rotated」がついたものです。<br>例：旅行の動画.mp4 → <strong>旅行の動画_rotated.mp4</strong></p>
+    <p>終わった動画は「<strong>✓ 保存がすんだ動画を一覧からはずす</strong>」で、一覧からまとめて消せます。1本だけ消すときは、動画の右上の「はずす」を押します。</p>
+    <img class="shot" src="img/06-done.png" alt="2本の動画を保存し終わったところ">
+    <p class="note">元の動画は書きかえません。新しいファイルとして保存するので、元の動画もそのまま残ります。</p>
+  </div>
+</section>
+
+<section class="page">
+  <h2>こまったとき</h2>
+  <dl class="qa">
+    <div>
+      <dt>「複数のファイルをダウンロードしますか？」と出ました。</dt>
+      <dd>何本もまとめて保存するときに、ブラウザが確認しています。「許可」を押してください。保存先のフォルダを選んでおくと、この確認は出ません。</dd>
+    </div>
+    <div>
+      <dt>「フォルダをえらぶ」ボタンがありません。</dt>
+      <dd>Safari や Firefox では、フォルダを選ぶ機能が使えません。Chrome か Edge で開いてください。または、ブラウザの設定で「ダウンロード前に保存場所を確認する」をオンにすると、保存のたびに場所を聞かれるようになります。</dd>
+    </div>
+    <div>
+      <dt>保存した動画が、回っていないように見えます。</dt>
+      <dd>ごく一部の古い再生ソフトは、動画の「向きの情報」を読みません。スマホの写真アプリ、ブラウザ、YouTube などで見ると、正しい向きで表示されます。</dd>
+    </div>
+    <div>
+      <dt>画面に動画が映りません。</dt>
+      <dd>ブラウザが再生できない形式の動画です（iPhone の一部の動画など）。画面には映りませんが、回して保存することはできます。</dd>
+    </div>
+    <div>
+      <dt>「MP4 / MOV ではないファイル」と出ました。</dt>
+      <dd>このアプリで回せるのは MP4 と MOV の動画だけです。</dd>
+    </div>
+    <div>
+      <dt>スマホで使えますか？</dt>
+      <dd>パソコンで使うためのアプリです。スマホでは、うまく開けないことがあります。</dd>
+    </div>
+  </dl>
+
+  <h2>利用ルール</h2>
+  <div class="rules">
+    <ol>
+      <li>このアプリは、メルマガ「平日30分のAI創作ログ」に登録してくださった方へのプレゼントです。</li>
+      <li>ご自分で使うぶんには、お仕事でも自由に使ってください。</li>
+      <li>ほかの人に渡したり、ネットに公開したり、売ったりするのはご遠慮ください。</li>
+      <li>大切な動画は、念のため元のファイルを残しておいてください。アプリを使って起きたトラブルについては、責任を負いかねます。</li>
+    </ol>
+    <p class="note">くわしくは、同じフォルダの「利用ルール.txt」を読んでください。</p>
+  </div>
+
+  <p class="end">まわりの人にすすめたいときは、アプリではなく、メルマガ「平日30分のAI創作ログ」を紹介してもらえるとうれしいです。<br>発行：なぎかぜ</p>
+</section>
+
+</body>
+</html>

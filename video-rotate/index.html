@@ -223,6 +223,19 @@
 
   .notes { margin: 0; padding-left: 1.2em; color: var(--muted); font-size: .85rem; }
   .notes li + li { margin-top: 4px; }
+
+  .gift {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .8rem;
+  }
+  .gift p { margin: 0; }
+  .gift .gift-name { color: var(--fg); font-weight: 700; font-size: .9rem; }
+  .gift a { color: var(--accent); }
 </style>
 
 <div class="wrap">
@@ -273,11 +286,25 @@
     <li>回した動画だけを保存します。何本も保存するとき、ブラウザが「複数のファイルをダウンロードしますか？」と聞いてきたら「許可」を押してください。</li>
     <li>ごく一部の古い再生ソフトは向きの情報を読まないため、回っていないように見えることがあります。</li>
   </ul>
+
+  <footer class="gift">
+    <p class="gift-name">メルマガ「平日30分のAI創作ログ」登録者限定プレゼント</p>
+    <p>忙しい会社員のための、AI創作の手順書 ／ 発行：なぎかぜ</p>
+    <p>このアプリを、ほかの人に渡したり、ネットに公開したりするのはご遠慮ください。</p>
+    <p id="signupRow" hidden>まわりの人にすすめたいときは、<a id="signup" href="#" target="_blank" rel="noopener">メルマガの登録ページ</a>を教えてあげてください。</p>
+  </footer>
 </div>
 
 <script>
 (() => {
+  // メルマガの登録ページのURL。決まったら "" の中に入れると、画面の下に案内が出ます。
+  const SIGNUP_URL = "";
+
   const $ = (id) => document.getElementById(id);
+  if (SIGNUP_URL) {
+    $("signup").href = SIGNUP_URL;
+    $("signupRow").hidden = false;
+  }
   const fileInput = $("file"), pick = $("pick"), list = $("list");
   const sample = $("sample"), bulk = $("bulk"), countEl = $("count");
   const saveBtn = $("save"), statusEl = $("status"), clearDone = $("clearDone");
